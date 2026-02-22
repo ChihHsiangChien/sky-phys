@@ -103,8 +103,12 @@ echo "[1/2] 正在分析數據 (R)..."
 Rscript "$SCRIPTS_DIR/dashboard.R" $CMD_ARGS
 
 # 3. 執行地圖與航跡更新 (Mapper Python)
-echo "[2/2] 正在產出互動式地圖 (Python)..."
+echo "[2/3] 正在產出互動式地圖 (Python)..."
 python3 "$SCRIPTS_DIR/mapper.py" $CMD_ARGS
+
+# 4. 執行進階物理地圖繪製 (Mapper R)
+echo "[3/3] 正在產出進階物理地圖 (R)..."
+Rscript "$SCRIPTS_DIR/mapper.R" $CMD_ARGS
 
 # 4. 自動歸檔整理 (Organize Daily Reports)
 # 邏輯：如果有指定日期，或者在 Rolling Window 模式下指定了 24 小時，則執行歸檔
@@ -119,6 +123,12 @@ if [ -n "$TARGET_DATE" ] || [ "$HOURS" -eq 24 ]; then
     
     # (C) 複製 HTML 地圖 (Mapper 產出的 *_YYYY-MM-DD.html)
     find "$REPORTS_DIR" -maxdepth 1 -name "*$TODAY.html" -exec cp {} "$TODAY_DIR/" \;
+
+    # (D) 複製進階物理地圖 (Mapper R 產出的 static_maps)
+    if [ -d "$REPORTS_DIR/static_maps" ]; then
+        mkdir -p "$TODAY_DIR/static_maps"
+        cp -r "$REPORTS_DIR/static_maps/"* "$TODAY_DIR/static_maps/"
+    fi
     
     # 兼容舊版與備份 Summary (如果存在)
     if [ -f "$REPORTS_DIR/observation_summary.txt" ]; then

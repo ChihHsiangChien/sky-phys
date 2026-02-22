@@ -11,6 +11,7 @@
     - `dashboard.py`: 核心分析引擎 (Python 版)，支援 **滾動時間窗口 (Rolling Window)** 分析 (預設 24 小時)，解決跨日數據斷層問題。
     - `dashboard.R`: **進階分析與繪圖引擎 (R 版)**，提供更精美的 ggplot2 視覺化圖表，支援物理註解字幕、統一排版樣式 (`theme_skyphys`) 與 **時段過濾功能** (`--start_hour`, `--end_hour`)。自動生成數據摘要報告 (`report_YYYY-MM-DD.txt`)。
     - `mapper.py`: 地理空間分析，支援自訂時窗 **或指定日期** 軌跡繪製，產出航跡熱圖與 **分層高度航線圖**。
+    - `mapper.R`: **進階地理空間繪圖 (R 版)**，產出高解析度靜態物理地圖 (PNG)。支援航流分析、熱圖、氣壓異常 (D-Value)、亂流分布及比能量高度分布圖。
     - `update_all.sh`: 一鍵自動化更新腳本，支援帶參數指定回推時間 (如 `./update_all.sh 12`)，並負責 **每日報告歸檔**。
     - `archive_yesterday.sh`: **強力歸檔工具**，自動運算昨天的日期，執行完整日曆天 (00:00-24:00) 分析並歸檔至 `daily_archive/`，適合排程執行。
 - **`logs/`**: 儲存 `adsb_YYYY-MM-DD.csv` 格式的日誌檔案。
@@ -236,6 +237,12 @@ $$\text{Wind Component} = GS - TAS$$
      ./scripts/dashboard.R --date 2026-02-18 --start_hour 6 --end_hour 12
      ```
      *這將生成指定時段 (06:00-12:00) 的 ggplot2 圖表與詳細文字報告 (`report_YYYY-MM-DD.txt`)，包含西風帶強度、對流層頂預測等物理指標。*
+
+   - **R 語言進階地圖分析 (生成 PNG 物理地圖)**:
+     ```bash
+     Rscript scripts/mapper.R --date 2026-02-18
+     ```
+     *這將產出包含 D-Value、亂流與能量分布在內的高品質靜態地圖，儲存於 `reports/static_maps/`。*
 
 6. **單機追蹤 (Single Aircraft Tracking)**:
    針對特定航班進行深入分析，判斷地形遮擋或飛行異常。系統會自動過濾雜訊、移除熱圖，並繪製詳細的航點數據 (時間/高度/速度)。
