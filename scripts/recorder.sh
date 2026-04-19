@@ -2,12 +2,18 @@
 # Sky-Phys 按日數據紀錄器
 
 # 0. 檢查是否已有舊的 recorder.sh 在執行 (避免重複啟動)
-if ps aux | grep "recorder.sh" | grep -v grep | grep -v $$ > /dev/null; then
-    echo "[錯誤] 偵測到另一個 recorder.sh 正在執行。請先停止舊程序。"
-    exit 1
-fi
+#if ps aux | grep "recorder.sh" | grep -v grep | grep -v $$ > /dev/null; then
+#    echo "[錯誤] 偵測到另一個 recorder.sh 正在執行。請先停止舊程序。"
+#    exit 1
+#fi
 
-LOGS_DIR="$HOME/Documents/sky-phys/logs"
+# 自動偵測腳本位置，將 log 放在專案目錄下的 logs 資料夾
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOGS_DIR="$SCRIPT_DIR/../logs"
+
+# 確保 log 目錄存在
+mkdir -p "$LOGS_DIR"
+
 
 while true; do
   # 動態產出當天的檔案名稱

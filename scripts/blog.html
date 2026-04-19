@@ -1,0 +1,67 @@
+<p>在上一篇《<a href="https://a-chien.blogspot.com/2026/03/ads-b.html">ADS-B 數位觀察：分析桃園空域航線、高度與信號傳播特性</a>》中，我們處理了基本的航跡數據。本篇將進入核心——<strong>大氣物理分析</strong>。透過 R 語言對 DAPs 數據的處理，我們能將每架飛機轉化為高空探空儀，重建出即時的大氣剖面。</p>
+
+<h2>1. 數據清洗：確保物理分析的準確性</h2>
+<p>在進行物理計算前，必須篩選出可靠的樣本。在 <code>dashboard.R</code> 中，我設定了嚴格的過濾條件，確保分析的是處於穩定巡航狀態的噴射機，排除低速或起降階段的干擾：</p>
+<pre><code class="language-r"># 篩選高速、高空且具備完整參數的樣本
+df <- df %>%
+  filter(!is.na(tas), !is.na(mach), !is.na(alt)) %>%
+  filter(tas > 100, mach > 0.3, alt > 5000)</code></pre>
+
+<h2>2. 熱力學推導：從馬赫數找回氣溫</h2>
+<p>高空感測最困難的是獲取準確的「靜溫」(Static Air Temperature)。我們利用<strong>真空速 (TAS)</strong> 與<strong>馬赫數 (Mach)</strong> 的比值來推算音速，進而求得溫度。根據單位換算，節 (knots) 與絕對溫度的關係常數約為 <strong>38.945</strong>。</p>
+<pre><code class="language-r"># 物理計算：音速與溫度
+df <- df %>%
+  mutate(
+    speed_of_sound = tas / mach,
+    temp = (speed_of_sound / 38.945)^2 - 273.15
+  )</code></pre>
+<p>【圖片標題：<strong>Vertical Temperature Profile (垂直氣溫剖面圖)</strong>】</p>
+
+<h3>對流層頂 (Tropopause) 的自動偵測</h3>
+<p>腳本中還包含了一套簡單的邏輯來預測對流層頂。如果在觀測最高度溫度仍持續下降，代表對流層頂位於更高空：</p>
+<pre><code class="language-r">analyze_tropopause <- function(df) {
+  top_alt <- max(df$alt, na.rm = TRUE)
+  min_temp <- min(df$temp, na.rm = TRUE)
+  return(sprintf("對流層頂預測: 目前觀測最高 %.0f ft 溫度仍下降至 %.1f°C", top_alt, min_temp))
+}</code></pre>
+
+<h2>3. 風場分析與西風指標 (Westerly Index)</h2>
+<p>利用飛機的地速 (GS) 與真空速 (TAS) 的差異，我們可以計算航向上的風分量。這對於觀察<strong>噴射氣流 (Jet Stream)</strong> 的強度非常有幫助。</p>
+<pre><code class="language-r"># 計算高空西風帶強度指標
+wind_diff <- avg_wind_east - avg_wind_west # 往東順風與往西逆風的差值</code></pre>
+<p>當順風分量超過 100 節時，系統會自動發出強風警報。透過這種方式，我們可以量化「西風帶」對跨太平洋航線的實際影響。</p>
+<p>【圖片標題：<strong>Observed Wind Profile (DAPs) (觀測風場剖面圖)</strong>】</p>
+
+<h2>4. D-Value 分析：氣壓偏差的實測</h2>
+<p>這是腳本中另一個進階分析。飛機回傳的高度有兩種：<strong>氣壓高度 (alt)</strong> 與 <strong>GPS 幾何高度 (alt_geom)</strong>。兩者的差值稱為 <strong>D-Value</strong>。</p>
+<pre><code class="language-r"># 計算 D-Value：反映大氣壓與標準大氣的偏差
+df <- df %>% mutate(d_value = alt_geom - alt)</code></pre>
+<p>這能告訴我們當前空域的氣壓是否偏離標準大氣。正值代表當地氣壓高於標準（高壓區），負值則代表低壓區。</p>
+
+<h2>5. 高階建模：空氣密度與能量高度</h2>
+<p>利用標標準大氣模型，我們推導出<strong>空氣密度</strong>與<strong>總比能 (Specific Energy Height)</strong>：</p>
+<pre><code class="language-r"># 計算總比能 (特定能量高度)
+df <- df %>%
+  mutate(
+    v_ms = tas * 0.514444,
+    specific_energy = h_m + (v_ms^2) / (2 * g)
+  )</code></pre>
+<p>這個指標代表了飛機的「總能量」，是評估飛行效率與性能包絡線的重要指標。</p>
+
+<h2>6. 信號與流量分析 (Traffic & Signal)</h2>
+<p>除了物理參數，我們也對接收站本身的性能進行了建模。例如 <strong>RSSI (信號強度)</strong> 與 <strong>高度</strong> 的關係：</p>
+<p>【圖片標題：<strong>Signal Strength (RSSI) vs Altitude (信號強度與高度圖)</strong>】</p>
+<p>理論上，高度越高，Line-of-Sight (視距) 越好，信號衰減越少。這驗證了自由空間路徑損耗 (FSPL) 模型。</p>
+
+<h3>航向流量統計 (Heading Rose)</h3>
+<p>利用圓盤圖展示主要流量的方向性：</p>
+<p>【圖片標題：<strong>Traffic Density by Heading (航向流量分佈圖)</strong>】</p>
+
+<h2>7. 性能差異：不同機種的飛行特徵</h2>
+<p>最後，我們依照飛機重量類別 (Wake Turbulence Category) 進行分類，觀察 Heavy (如 A350/B777) 與 Small 機種在速度與巡航高度上的差異。</p>
+<p>【圖片標題：<strong>Aircraft Performance by Category (不同機型性能特徵圖)</strong>】</p>
+
+<blockquote>
+  <strong>結語：將代碼轉化為洞察</strong><br/>
+  這套 <code>dashboard.R</code> 系統將原本零散的數位報文，轉化為結構化的科學洞察。我們不僅看到了飛機在動，更看到了大氣在流動、能量在轉換。這就是數據科學與物理學結合的魅力。
+</blockquote>
